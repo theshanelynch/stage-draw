@@ -32,4 +32,22 @@ Open `index.html` in any browser. No server required.
 
 ## Working with Libraries
 
-When modifying the shape library, the XML content for each shape must be deflate-compressed (matching `official.xml` as the reference format). The icons in `icons/` are the source SVGs; they get base64-encoded into the library entries' style strings.
+### The Semicolon Corruption Bug (Critical)
+Draw.io uses semicolons (`;`) to separate properties in its `style` attribute. Standard base64 data URIs (e.g., `data:image/svg+xml;base64,...`) also contain semicolons. 
+
+**The Bug**: If you embed a base64 URI directly inside a style string, the draw.io parser sees the semicolon, thinks the style property has ended early, and truncates the image data. This results in "blank" icons and `net::ERR_INVALID_URL` errors in the browser console.
+
+### The Robust Fix: "Simple Data" Format
+To avoid this, we use the **Simple Data Format** for the `StageEquipment.xml` library. Instead of placing the image URI inside a complex XML-compressed `xml` field, we provide it in a direct `data` field in the library JSON.
+*   **Format**: `[{"title": "Name", "data": "data:image/svg+xml;base64,...", "w": 40, "h": 40}]`
+*   **Benefits**: Immune to the semicolon bug, no complex XML nesting, and significantly more reliable across different draw.io versions.
+
+### Updating the Library
+Use the `build-library.py` script to regenerate the library. It is configured to use the "Simple Data" format. 
+*   **Command**: `python3 build-library.py`
+*   **Output**: Updates `StageEquipment.xml` and `StageEquipment.drawiolib`.
+
+## Stage Plot Encoding
+If you must embed images directly inside a `.drawio` stage plot file (outside of a library):
+1.  **Strict URL-Encoding**: You MUST URL-encode the entire data URI (converting `;` to `%3B` and `+` to `%2B`) before inserting it into the `image=...` style.
+2.  **HTML Format**: Alternatively, use the `html=1` style and place an `<img>` tag inside the cell's `value` attribute. This is the most robust method for complex plots.
